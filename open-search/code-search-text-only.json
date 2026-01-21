@@ -1,0 +1,52 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0,
+    "analysis": {
+      "tokenizer": {
+        "code_tokenizer": {
+          "type": "pattern",
+          "pattern": "[^a-zA-Z0-9_]"
+        }
+      },
+      "filter": {
+        "limit_token_length": {
+          "type": "length",
+          "max": 256
+        }
+      },
+      "analyzer": {
+        "code_analyzer": {
+          "type": "custom",
+          "tokenizer": "code_tokenizer",
+          "filter": [
+            "lowercase",
+            "limit_token_length"
+          ]
+        }
+      }
+    }
+  },
+  "mappings": {
+    "dynamic": "false",
+    "properties": {
+      "repo": {
+        "type": "keyword"
+      },
+      "path": {
+        "type": "keyword"
+      },
+      "language": {
+        "type": "keyword"
+      },
+      "chunk_id": {
+        "type": "integer"
+      },
+      "content": {
+        "type": "text",
+        "analyzer": "code_analyzer"
+      }
+    }
+  }
+}
+

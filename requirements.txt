@@ -1,0 +1,11 @@
+fastmcp>=2.14.2
+cyclopts>=5.0.0a1
+fastapi
+opensearch-py
+python-dotenv
+GitPython
+Pygments
+tree-sitter==0.20.4
+tree-sitter-languages==1.10.2
+sentence-transformers
+torch
