@@ -193,12 +193,13 @@ def walk_repo(repo_path):
 # Run
 # -----------------------------
 if __name__ == "__main__":
-   walk_repo("./javakiteconnect")
-   walk_repo("./duebook")
-   walk_repo("./admin-hub")
-   walk_repo("./netly")
-   walk_repo("./famvest")
-   walk_repo("./DVWA")
-   walk_repo("./git-secrets")
-   walk_repo("./juice-shop")
+   # walk_repo("./javakiteconnect")
+   # walk_repo("./duebook")
+   # walk_repo("./admin-hub")
+   # walk_repo("./netly")
+   # walk_repo("./famvest")
+   # walk_repo("./DVWA")
+   # walk_repo("./git-secrets")
+   # walk_repo("./juice-shop")
+   pass
 
