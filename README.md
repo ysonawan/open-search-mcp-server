@@ -5,14 +5,15 @@ A comprehensive guide to setting up OpenSearch for code search, ingesting source
 ## Table of Contents
 
 1. [Overview](#overview)
-2. [Prerequisites](#prerequisites)
-3. [Installing OpenSearch](#installing-opensearch)
-4. [Setting Up Indexes](#setting-up-indexes)
-5. [Ingesting Code](#ingesting-code)
-6. [Searching Code](#searching-code)
-7. [OpenSearch Dashboard](#opensearch-dashboard)
-8. [MCP Server Integration](#mcp-server-integration)
-9. [Architecture](#architecture)
+2. [Quickstart (this repo)](#quickstart-this-repo)
+3. [Prerequisites](#prerequisites)
+4. [Installing OpenSearch](#installing-opensearch)
+5. [Setting Up Indexes](#setting-up-indexes)
+6. [Ingesting Code](#ingesting-code)
+7. [Searching Code](#searching-code)
+8. [OpenSearch Dashboard](#opensearch-dashboard)
+9. [MCP Server Integration](#mcp-server-integration)
+10. [Architecture](#architecture)
 
 ---
 
@@ -25,6 +26,21 @@ This OpenSearch MCP Server enables AI agents to search through codebases using b
 - **Repository Filtering**: Filter results by repository when needed
 - **Code Metadata**: Retrieves file paths, languages, line numbers, and code snippets
 - **Integration with AI**: Seamlessly integrates with Claude and other AI models via MCP protocol
+
+---
+
+## Quickstart (this repo)
+
+Follow these repo-specific steps before diving into the detailed sections:
+
+1. Create `.env` in the repo root with `OPENSEARCH_INITIAL_ADMIN_PASSWORD=<your-strong-password>`.
+2. Start the OpenSearch stack using the bundled compose file: `docker compose -f open-search/docker-compose.yml up -d`.
+3. Create the indexes from the checked-in definitions:  
+   - `curl -k -u admin:<your-password> -X PUT "https://localhost:9200/code-search-text-only" -H "Content-Type: application/json" -d @open-search/code-search-text-only.json`  
+   - `curl -k -u admin:<your-password> -X PUT "https://localhost:9200/code-search-with-vectors" -H "Content-Type: application/json" -d @open-search/code-search-with-vectors.json`
+4. Install dependencies with `uv sync` (or `pip install -r requirements.txt`).
+5. Point the ingestion scripts in `ingest-code/` at the repository you want to index (replace the `<your repo path>` placeholder) and run them.
+6. Start the MCP server: `python main.py` (listens on `http://localhost:8003`).
 
 ---
 
