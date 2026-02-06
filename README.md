@@ -1,18 +1,38 @@
 # OpenSearch MCP Server - Code Search Agent
 
-A comprehensive guide to setting up OpenSearch for code search, ingesting source code, and integrating it with an MCP (Model Context Protocol) Server for AI-powered code search capabilities.
+[![Python Version](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
+[![MCP](https://img.shields.io/badge/MCP-2.14.2-green.svg)](https://fastmcp.dev/)
+[![OpenSearch](https://img.shields.io/badge/OpenSearch-2.x-orange.svg)](https://opensearch.org/)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+A powerful **Model Context Protocol (MCP) server** that enables AI agents like Claude to search through codebases using hybrid search—combining semantic understanding with keyword matching. This server bridges OpenSearch and AI models, providing intelligent code search capabilities through natural language queries.
+
+## Features
+
+- 🔍 **Hybrid Search**: Semantic (embedding-based) + keyword search for best results
+- 🚀 **Fast & Scalable**: Built on OpenSearch with efficient indexing
+- 🤖 **AI-Native**: Direct integration with Claude and other AI models via MCP
+- 📦 **Easy Setup**: Docker-based OpenSearch deployment
+- 🎯 **Smart Chunking**: Tree-sitter based symbol extraction with line-based fallback
+- 🔧 **Flexible**: Support for 15+ programming languages
+- 📊 **Observable**: Built-in OpenSearch Dashboard for monitoring
 
 ## Table of Contents
 
 1. [Overview](#overview)
-2. [Prerequisites](#prerequisites)
-3. [Installing OpenSearch](#installing-opensearch)
-4. [Setting Up Indexes](#setting-up-indexes)
-5. [Ingesting Code](#ingesting-code)
-6. [Searching Code](#searching-code)
-7. [OpenSearch Dashboard](#opensearch-dashboard)
-8. [MCP Server Integration](#mcp-server-integration)
-9. [Architecture](#architecture)
+2. [Quick Start](#quick-start)
+3. [Prerequisites](#prerequisites)
+4. [Installing OpenSearch](#installing-opensearch)
+5. [Setting Up Indexes](#setting-up-indexes)
+6. [Ingesting Code](#ingesting-code)
+7. [MCP Server Setup](#mcp-server-setup)
+8. [Claude Desktop Integration](#claude-desktop-integration)
+9. [Searching Code](#searching-code)
+10. [OpenSearch Dashboard](#opensearch-dashboard)
+11. [Architecture](#architecture)
+12. [Development](#development)
+13. [Troubleshooting](#troubleshooting)
+14. [Contributing](#contributing)
 
 ---
 
@@ -28,13 +48,51 @@ This OpenSearch MCP Server enables AI agents to search through codebases using b
 
 ---
 
+## Quick Start
+
+Get up and running in 5 minutes:
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/ysonawan/open-search-mcp-server.git
+cd open-search-mcp-server
+
+# 2. Set up environment
+echo "OPENSEARCH_INITIAL_ADMIN_PASSWORD=YourStrongPassword123!" > .env
+
+# 3. Start OpenSearch
+cd open-search
+docker compose up -d
+
+# 4. Create indexes
+curl -k -u admin:YourStrongPassword123! -X PUT \
+  https://localhost:9200/code-search-with-vectors \
+  -H "Content-Type: application/json" \
+  -d @code-search-with-vectors.json
+
+# 5. Install Python dependencies
+cd ..
+pip install -r requirements.txt
+# or use uv: uv sync
+
+# 6. Ingest your code (edit path in script first)
+python ingest-code/ingest-code-with-vectors.py
+
+# 7. Start MCP server
+python main.py
+```
+
+Now configure Claude Desktop (see [Claude Desktop Integration](#claude-desktop-integration)) to start using natural language code search!
+
+---
+
 ## Prerequisites
 
 Before you begin, ensure you have:
 
-- **Docker**: For running OpenSearch
+- **Docker**: For running OpenSearch ([Install Docker](https://docs.docker.com/get-docker/))
 - **Docker Compose**: For orchestrating containers
-- **Python 3.14+**: For running the ingestion scripts and MCP server
+- **Python 3.12+**: For running the ingestion scripts and MCP server
 - **pip or uv**: Python package manager
 
 ---
@@ -851,7 +909,7 @@ GET /code-search-text-only/_search
 
 ---
 
-## MCP Server Integration
+## MCP Server Setup
 
 ### What is the MCP Server?
 
@@ -861,29 +919,6 @@ The **Model Context Protocol (MCP) Server** is an integration layer that connect
 - Automatic query translation to OpenSearch queries
 - Result formatting and ranking
 - Integration with AI-powered code analysis tools
-
-### Architecture
-
-```
-┌─────────────┐
-│   Claude/   │
-│     AI      │
-└──────┬──────┘
-       │ (MCP Protocol)
-       ▼
-┌──────────────────────┐
-│  MCP Server (main.py)│
-│ - search_code()      │
-│ - code_search_agent()│
-└──────┬───────────────┘
-       │ (HTTP/REST)
-       ▼
-┌──────────────────────┐
-│   OpenSearch         │
-│  - Vector Search     │
-│  - Keyword Search    │
-└──────────────────────┘
-```
 
 ### Installation
 
@@ -899,13 +934,21 @@ Or using uv:
 uv sync
 ```
 
+**Note**: On first run, the sentence-transformers library will download the `all-MiniLM-L6-v2` model (~90MB). This is a one-time download.
+
 ### Configuration
 
-The MCP server connects to OpenSearch using:
+The MCP server reads configuration from a `.env` file in the project root:
+
+```bash
+OPENSEARCH_INITIAL_ADMIN_PASSWORD=YourStrongPassword123!
+```
+
+The server connects to OpenSearch using:
 
 - **Host**: `localhost`
 - **Port**: `9200`
-- **Auth**: Admin credentials (configured in main.py)
+- **Auth**: Admin credentials from `.env`
 - **Index**: `code-search-with-vectors` (hybrid search index)
 
 ### Running the MCP Server
@@ -921,15 +964,17 @@ Expected output:
 Starting MCP Server on http://localhost:8003
 ```
 
+The server will be ready to accept connections from MCP clients.
+
 ### Server Capabilities
 
-The MCP server provides:
+The MCP server provides two main capabilities:
 
-#### 1. search_code Tool
+#### 1. `search_code` Tool
 
 **Parameters:**
 - `query` (string, required): Natural language search query
-- `repo` (string, optional): Filter results by repository
+- `repo` (string, optional): Filter results by repository name
 
 **Returns:**
 - List of code snippets with metadata:
@@ -946,22 +991,22 @@ The MCP server provides:
 Find all functions that handle authentication
 ```
 
-**Expected Response:**
+**Example Response:**
 ```json
 [
   {
     "score": 0.95,
-    "repo": "my-repo",
+    "repo": "my-app",
     "path": "src/auth/handler.py",
     "language": "python",
     "start_line": 42,
     "end_line": 68,
-    "content": "def handle_authentication(...)"
+    "content": "def handle_authentication(request):\n    ..."
   }
 ]
 ```
 
-#### 2. code_search_agent Prompt
+#### 2. `code_search_agent` Prompt
 
 Provides system instructions for the AI agent on how to:
 - Use the search_code tool effectively
@@ -969,28 +1014,646 @@ Provides system instructions for the AI agent on how to:
 - Never fabricate code snippets
 - Handle edge cases (no results found)
 
-### Integration with Claude
-
-Once the MCP server is running, configure your MCP client (e.g., Claude desktop app) to connect:
-
-1. Add server configuration pointing to `http://localhost:8003`
-2. Authenticate with appropriate credentials
-3. Use natural language to search code
-
-Example conversation:
-```
-User: "Find functions that implement retry logic"
-Claude: [Uses search_code tool] "I found 3 code snippets that implement retry mechanisms..."
-```
-
 ### Search Strategy
 
-The MCP server uses **hybrid search**:
+The MCP server uses **hybrid search** combining:
 
 1. **Semantic Search**: Uses embeddings to understand query intent
 2. **Keyword Search**: Performs exact keyword matching with 2x boost
 3. **Ranking**: Combines scores from both methods
 4. **Filtering**: Optionally filters by repository
+
+---
+
+## Claude Desktop Integration
+
+To use this MCP server with Claude Desktop, you need to configure Claude to connect to your local MCP server.
+
+### Step 1: Locate Claude Desktop Config
+
+The configuration file location depends on your operating system:
+
+- **MacOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+- **Linux**: `~/.config/Claude/claude_desktop_config.json`
+
+### Step 2: Configure MCP Server
+
+Add the following configuration to your `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "code-search": {
+      "command": "python",
+      "args": ["/absolute/path/to/open-search-mcp-server/main.py"],
+      "env": {
+        "OPENSEARCH_INITIAL_ADMIN_PASSWORD": "YourStrongPassword123!"
+      }
+    }
+  }
+}
+```
+
+**Important**: Replace `/absolute/path/to/open-search-mcp-server/` with the actual absolute path to your project directory.
+
+### Step 3: Alternative Configuration with UV
+
+If you're using `uv`, you can configure it like this:
+
+```json
+{
+  "mcpServers": {
+    "code-search": {
+      "command": "uv",
+      "args": ["run", "main.py"],
+      "cwd": "/absolute/path/to/open-search-mcp-server",
+      "env": {
+        "OPENSEARCH_INITIAL_ADMIN_PASSWORD": "YourStrongPassword123!"
+      }
+    }
+  }
+}
+```
+
+### Step 4: Restart Claude Desktop
+
+After updating the configuration:
+
+1. Quit Claude Desktop completely
+2. Restart the application
+3. The MCP server will automatically start when Claude Desktop launches
+
+### Step 5: Verify Connection
+
+To verify the connection is working:
+
+1. Open Claude Desktop
+2. Start a new conversation
+3. Try a query like: "Search for authentication functions in my codebase"
+4. Claude should use the `search_code` tool to query your indexed code
+
+### Usage Examples
+
+Once configured, you can use natural language to search your code:
+
+**Example 1: Find specific functionality**
+```
+User: "Find all database connection handling code"
+Claude: [Uses search_code tool and returns relevant code snippets]
+```
+
+**Example 2: Search in specific repository**
+```
+User: "Search for error handling in the backend repository"
+Claude: [Uses search_code with repo filter and returns results]
+```
+
+**Example 3: Understand code patterns**
+```
+User: "Show me how we implement caching"
+Claude: [Searches and explains the caching implementation based on actual code]
+```
+
+### Troubleshooting MCP Connection
+
+If Claude can't connect to the MCP server:
+
+1. **Check OpenSearch is running**:
+   ```bash
+   curl -k -u admin:YourStrongPassword123! https://localhost:9200/_cluster/health
+   ```
+
+2. **Verify Python/UV is in PATH**:
+   ```bash
+   which python
+   # or
+   which uv
+   ```
+
+3. **Test MCP server manually**:
+   ```bash
+   python main.py
+   # Should show: Starting MCP Server on http://localhost:8003
+   ```
+
+4. **Check Claude Desktop logs**:
+   - MacOS: `~/Library/Logs/Claude/`
+   - Windows: `%APPDATA%\Claude\logs\`
+   - Linux: `~/.config/Claude/logs/`
+
+---
+
+## Architecture
+
+### System Overview
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      Claude Desktop                          │
+│                   (AI Assistant Interface)                   │
+└───────────────────────────┬─────────────────────────────────┘
+                            │
+                            │ MCP Protocol (stdio/http)
+                            │
+┌───────────────────────────▼─────────────────────────────────┐
+│                   MCP Server (main.py)                       │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │  Tools:                                              │   │
+│  │  • search_code(query, repo)                         │   │
+│  │                                                       │   │
+│  │  Prompts:                                            │   │
+│  │  • code_search_agent()                              │   │
+│  └─────────────────────────────────────────────────────┘   │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │  Components:                                         │   │
+│  │  • SentenceTransformer (all-MiniLM-L6-v2)          │   │
+│  │  • OpenSearch Python Client                         │   │
+│  └─────────────────────────────────────────────────────┘   │
+└───────────────────────────┬─────────────────────────────────┘
+                            │
+                            │ HTTPS/REST API
+                            │
+┌───────────────────────────▼─────────────────────────────────┐
+│                      OpenSearch Cluster                      │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │  Index: code-search-with-vectors                    │   │
+│  │  • Hybrid Search (KNN + BM25)                       │   │
+│  │  • Vector Embeddings (384 dimensions)               │   │
+│  │  • Custom Code Analyzer                             │   │
+│  └─────────────────────────────────────────────────────┘   │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │  Index: code-search-text-only                       │   │
+│  │  • Keyword Search (BM25)                            │   │
+│  │  • Fast token-based matching                        │   │
+│  └─────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+                            ▲
+                            │
+                            │ Bulk API
+                            │
+┌───────────────────────────┴─────────────────────────────────┐
+│                   Ingestion Scripts                          │
+│  • ingest-code-with-vectors.py                              │
+│  • ingest-code-text-only.py                                 │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │  • Tree-sitter parsing                               │   │
+│  │  • Symbol extraction (functions, classes)            │   │
+│  │  • Line-based chunking fallback                      │   │
+│  │  • Embedding generation                              │   │
+│  └─────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Data Flow
+
+#### 1. Ingestion Pipeline
+
+```
+Local Codebase
+    │
+    ├─→ Walk repository files
+    │
+    ├─→ Filter by extension & size
+    │
+    ├─→ Parse with tree-sitter
+    │       │
+    │       ├─→ Extract symbols (functions, classes)
+    │       └─→ Fallback to line-based chunks
+    │
+    ├─→ Generate embeddings (SentenceTransformer)
+    │
+    └─→ Bulk index to OpenSearch
+            │
+            ├─→ code-search-text-only (keyword only)
+            └─→ code-search-with-vectors (hybrid)
+```
+
+#### 2. Search Pipeline
+
+```
+User Query (Natural Language)
+    │
+    ├─→ Claude Desktop
+    │
+    ├─→ MCP Server (search_code tool)
+    │       │
+    │       ├─→ Generate query embedding
+    │       │
+    │       └─→ Build hybrid query:
+    │           • KNN search on embeddings (k=50)
+    │           • BM25 match on content (boost=2x)
+    │           • Optional repo filter
+    │
+    ├─→ OpenSearch executes query
+    │
+    ├─→ Return top 10 results with scores
+    │
+    └─→ Format and display in Claude
+```
+
+### Component Details
+
+#### MCP Server (`main.py`)
+- **Framework**: FastMCP
+- **Port**: 8003 (HTTP transport)
+- **Model**: all-MiniLM-L6-v2 (384-dim embeddings)
+- **Index**: code-search-with-vectors
+
+#### OpenSearch
+- **Version**: 2.x
+- **Deployment**: Docker Compose (2 nodes)
+- **Dashboard**: Port 5601
+- **API**: Port 9200
+
+#### Ingestion
+- **Languages**: Java, Python, JavaScript, TypeScript, Go, Ruby, Rust, C, C++, C#, PHP, Swift, Kotlin, Scala
+- **Chunking**: Symbol-based (preferred) or line-based (200 lines, 40 overlap)
+- **Max File Size**: 500KB
+- **Batch Size**: 500 documents
+
+---
+
+## Development
+
+### Setting Up Development Environment
+
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/ysonawan/open-search-mcp-server.git
+   cd open-search-mcp-server
+   ```
+
+2. **Install dependencies**:
+   ```bash
+   # Using pip
+   pip install -r requirements.txt
+
+   # Or using uv (recommended)
+   uv sync
+   ```
+
+3. **Set up pre-commit hooks** (optional):
+   ```bash
+   pip install pre-commit
+   pre-commit install
+   ```
+
+### Project Structure
+
+```
+open-search-mcp-server/
+├── main.py                          # MCP server implementation
+├── requirements.txt                 # Python dependencies
+├── pyproject.toml                   # Project metadata
+├── .env-example                     # Environment template
+├── ingest-code/
+│   ├── ingest-code-text-only.py    # Text-only ingestion
+│   └── ingest-code-with-vectors.py # Vector ingestion
+└── open-search/
+    ├── docker-compose.yml           # OpenSearch setup
+    ├── code-search-text-only.json   # Text index schema
+    └── code-search-with-vectors.json # Vector index schema
+```
+
+### Customizing Ingestion
+
+#### Adding New Language Support
+
+Edit the `LANGUAGE_MAP` in ingestion scripts:
+
+```python
+LANGUAGE_MAP = {
+    ".java": "java",
+    ".py": "python",
+    # Add your language
+    ".elm": "elm",
+    ".ex": "elixir",
+}
+```
+
+#### Adjusting Chunk Sizes
+
+Modify chunking parameters:
+
+```python
+LINE_CHUNK_SIZE = 200      # Number of lines per chunk
+LINE_CHUNK_OVERLAP = 40    # Overlap between chunks
+MAX_FILE_SIZE = 500_000    # Maximum file size (bytes)
+```
+
+#### Customizing Search Behavior
+
+Edit search parameters in `main.py`:
+
+```python
+body = {
+    "size": 10,  # Number of results (increase for more)
+    "query": {
+        "bool": {
+            "should": [
+                {
+                    "knn": {
+                        "embedding": {
+                            "vector": query_embedding,
+                            "k": 50  # Candidate pool size
+                        }
+                    }
+                },
+                {
+                    "match": {
+                        "content": {
+                            "query": query,
+                            "boost": 2  # Keyword boost factor
+                        }
+                    }
+                }
+            ]
+        }
+    }
+}
+```
+
+### Testing
+
+#### Test MCP Server Locally
+
+```bash
+# Start server
+python main.py
+
+# In another terminal, test with curl
+curl -X POST http://localhost:8003 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tool": "search_code",
+    "arguments": {
+      "query": "authentication"
+    }
+  }'
+```
+
+#### Test OpenSearch Directly
+
+```bash
+# Health check
+curl -k -u admin:YourPassword https://localhost:9200/_cluster/health?pretty
+
+# Count documents
+curl -k -u admin:YourPassword https://localhost:9200/code-search-with-vectors/_count?pretty
+
+# Test search
+curl -k -u admin:YourPassword \
+  -X GET https://localhost:9200/code-search-with-vectors/_search?pretty \
+  -H "Content-Type: application/json" \
+  -d '{"query": {"match": {"content": "function"}}}'
+```
+
+---
+
+## Troubleshooting
+
+### Common Issues and Solutions
+
+#### Issue: Connection Refused to OpenSearch
+
+**Symptoms**:
+```
+ConnectionError: Connection refused by OpenSearch
+```
+
+**Solutions**:
+1. Ensure OpenSearch is running:
+   ```bash
+   docker ps | grep opensearch
+   ```
+
+2. Check container logs:
+   ```bash
+   docker logs opensearch-node1
+   ```
+
+3. Verify port binding:
+   ```bash
+   curl -k -u admin:YourPassword https://localhost:9200
+   ```
+
+4. Check firewall settings (ensure port 9200 is accessible)
+
+---
+
+#### Issue: Authentication Failed
+
+**Symptoms**:
+```
+AuthenticationException: Incorrect username or password
+```
+
+**Solutions**:
+1. Verify `.env` file exists and contains password:
+   ```bash
+   cat .env
+   ```
+
+2. Ensure password matches in all locations:
+   - `.env` file
+   - `main.py` (reads from .env)
+   - Ingestion scripts (read from .env)
+
+3. Check OpenSearch logs for auth errors:
+   ```bash
+   docker logs opensearch-node1 | grep -i auth
+   ```
+
+---
+
+#### Issue: No Results in Search
+
+**Symptoms**:
+- Empty search results
+- Score is always 0
+
+**Solutions**:
+1. Verify data was ingested:
+   ```bash
+   curl -k -u admin:YourPassword \
+     https://localhost:9200/code-search-with-vectors/_count
+   ```
+
+2. Check if index exists:
+   ```bash
+   curl -k -u admin:YourPassword \
+     https://localhost:9200/_cat/indices?v
+   ```
+
+3. Verify data in index:
+   ```bash
+   curl -k -u admin:YourPassword \
+     https://localhost:9200/code-search-with-vectors/_search?size=1&pretty
+   ```
+
+4. Re-run ingestion if needed
+
+---
+
+#### Issue: Embedding Model Download Fails
+
+**Symptoms**:
+```
+OSError: Can't load model from HuggingFace
+```
+
+**Solutions**:
+1. Check internet connection
+
+2. Manually download model:
+   ```python
+   from sentence_transformers import SentenceTransformer
+   model = SentenceTransformer('all-MiniLM-L6-v2')
+   ```
+
+3. Use cached model (if previously downloaded)
+
+4. Check disk space (model is ~90MB)
+
+---
+
+#### Issue: MCP Server Not Connecting from Claude
+
+**Symptoms**:
+- Claude says "Tool not available"
+- MCP server not showing in Claude
+
+**Solutions**:
+1. Verify `claude_desktop_config.json` exists and is valid JSON
+
+2. Check absolute paths in config are correct
+
+3. Restart Claude Desktop completely (quit and reopen)
+
+4. Check Claude Desktop logs:
+   ```bash
+   # MacOS
+   tail -f ~/Library/Logs/Claude/mcp*.log
+   ```
+
+5. Test MCP server standalone:
+   ```bash
+   python main.py
+   # Should show: Starting MCP Server on http://localhost:8003
+   ```
+
+---
+
+#### Issue: Ingestion is Very Slow
+
+**Symptoms**:
+- Ingestion takes hours
+- High CPU/memory usage
+
+**Solutions**:
+1. Reduce batch size in ingestion scripts:
+   ```python
+   if len(actions) >= 100:  # Reduced from 500
+       helpers.bulk(client, actions)
+   ```
+
+2. Skip large files:
+   ```python
+   MAX_FILE_SIZE = 100_000  # Reduced from 500KB
+   ```
+
+3. Use text-only index (faster, no embeddings):
+   ```bash
+   python ingest-code/ingest-code-text-only.py
+   ```
+
+4. Filter to specific file types only
+
+---
+
+#### Issue: OpenSearch Container Crashes
+
+**Symptoms**:
+```
+opensearch-node1 exited with code 137
+```
+
+**Solutions**:
+1. Increase Docker memory limit (Settings → Resources)
+
+2. Reduce Java heap size in `docker-compose.yml`:
+   ```yaml
+   - OPENSEARCH_JAVA_OPTS=-Xms256m -Xmx256m
+   ```
+
+3. Use single node instead of cluster:
+   ```yaml
+   # Comment out opensearch-node2 in docker-compose.yml
+   ```
+
+---
+
+#### Issue: Index Already Exists Error
+
+**Symptoms**:
+```
+resource_already_exists_exception
+```
+
+**Solutions**:
+1. Delete and recreate index:
+   ```bash
+   curl -k -u admin:YourPassword \
+     -X DELETE https://localhost:9200/code-search-with-vectors
+
+   curl -k -u admin:YourPassword \
+     -X PUT https://localhost:9200/code-search-with-vectors \
+     -H "Content-Type: application/json" \
+     -d @open-search/code-search-with-vectors.json
+   ```
+
+2. Or use a different index name in scripts
+
+---
+
+## Contributing
+
+We welcome contributions! Here's how you can help:
+
+### Reporting Issues
+
+1. Check if the issue already exists
+2. Provide detailed reproduction steps
+3. Include logs and error messages
+4. Specify your environment (OS, Python version, Docker version)
+
+### Submitting Pull Requests
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes
+4. Test thoroughly
+5. Commit with clear messages
+6. Push to your fork
+7. Open a Pull Request
+
+### Areas for Contribution
+
+- **Language Support**: Add more programming languages
+- **Search Improvements**: Enhance ranking algorithms
+- **Performance**: Optimize ingestion and search speed
+- **Documentation**: Improve guides and examples
+- **Tests**: Add unit and integration tests
+- **Features**: Multi-repository support, incremental updates, etc.
+
+### Development Guidelines
+
+- Follow existing code style
+- Add comments for complex logic
+- Update README for new features
+- Test with different codebases
+- Keep dependencies minimal
 
 ---
 
@@ -1037,58 +1700,110 @@ docker compose exec opensearch curl -k -u admin:<your-password> \
 
 ---
 
-## Troubleshooting
-
-### Issue: Connection Refused
-
-**Solution**: Ensure OpenSearch is running and healthy:
-```bash
-docker ps
-curl -k -u admin:<your-password> https://localhost:9200
-```
-
-### Issue: Authentication Failed
-
-**Solution**: Verify credentials match those in `.env` file and check logs:
-```bash
-docker compose logs opensearch
-```
-
-### Issue: No Results in Search
-
-**Solution**: Verify data was ingested:
-```bash
-curl -k -u admin:<your-password> https://localhost:9200/code-search-text-only/_count
-```
-
-### Issue: MCP Server Connection Error
-
-**Solution**: Check if server is running on port 8003:
-```bash
-curl http://localhost:8003
-```
-
----
-
 ## Next Steps
 
-1. **Customize Ingestion**: Modify ingest scripts to match your codebase structure
-2. **Tune Search Parameters**: Adjust chunk sizes and boost factors for better results
-3. **Monitor Performance**: Use OpenSearch Dashboard to track query performance
-4. **Scale Up**: Configure multiple shards and replicas for larger codebases
-5. **Advanced Analytics**: Build custom dashboards to analyze code metrics
+Once you have your code search system running, consider these enhancements:
+
+### 1. Index Multiple Repositories
+
+Ingest multiple codebases to search across projects:
+
+```bash
+# Edit the ingestion script to loop through repos
+repos = [
+    "/path/to/repo1",
+    "/path/to/repo2",
+    "/path/to/repo3"
+]
+
+for repo in repos:
+    walk_repo(repo)
+```
+
+### 2. Tune Search Parameters
+
+Experiment with different configurations:
+
+- **Increase result count**: Change `size` parameter for more results
+- **Adjust boost factors**: Modify keyword vs. semantic weighting
+- **Change k-NN pool size**: Larger `k` values for more semantic candidates
+- **Chunk sizes**: Optimize for your codebase structure
+
+### 3. Add Incremental Updates
+
+Implement file-watching for automatic re-indexing:
+
+```python
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
+
+# Watch for changes and re-index modified files
+```
+
+### 4. Monitor Performance
+
+Use OpenSearch Dashboard to track:
+
+- Query latency and throughput
+- Index size and growth
+- Search patterns and popular queries
+- Resource utilization
+
+### 5. Scale for Production
+
+For larger deployments:
+
+- Add more OpenSearch nodes
+- Increase shard count for parallel processing
+- Configure replicas for high availability
+- Use dedicated hardware for embedding generation
+- Implement caching for frequent queries
+
+### 6. Extend Functionality
+
+Add new features:
+
+- **Multi-language support**: Add more programming languages
+- **Custom analyzers**: Language-specific tokenization
+- **Fuzzy matching**: Handle typos and variations
+- **Syntax-aware search**: Search by AST patterns
+- **Code explanations**: Use LLM to explain search results
+- **Dependency tracking**: Index import/require statements
 
 ---
 
 ## References
 
 - [OpenSearch Documentation](https://opensearch.org/docs/)
+- [OpenSearch Python Client](https://opensearch-project.github.io/opensearch-py/)
 - [Sentence Transformers](https://www.sbert.net/)
 - [FastMCP Documentation](https://fastmcp.dev/)
-- [OpenSearch Python Client](https://opensearch-project.github.io/opensearch-py/)
+- [Model Context Protocol](https://modelcontextprotocol.io/)
+- [Tree-sitter](https://tree-sitter.github.io/tree-sitter/)
+- [Claude Desktop](https://claude.ai/download)
+
+---
+
+## Acknowledgments
+
+Built with:
+- [OpenSearch](https://opensearch.org/) - Search and analytics engine
+- [FastMCP](https://fastmcp.dev/) - Model Context Protocol framework
+- [Sentence Transformers](https://www.sbert.net/) - Embedding generation
+- [Tree-sitter](https://tree-sitter.github.io/) - Code parsing
 
 ---
 
 ## License
 
-This project is provided as-is for code search and AI integration purposes.
+This project is provided as-is for code search and AI integration purposes. See [LICENSE](LICENSE) file for details.
+
+---
+
+## Support
+
+- **Issues**: [GitHub Issues](https://github.com/ysonawan/open-search-mcp-server/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/ysonawan/open-search-mcp-server/discussions)
+- **Documentation**: [README](README.md)
+
+Happy code searching! 🔍
